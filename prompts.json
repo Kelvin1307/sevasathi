@@ -1,0 +1,83 @@
+{
+  "purpose": "Prototype prompts for testing NyayaSetu scheme retrieval and optional geo-spatial channel routing.",
+  "data_notice": "All channel partners in channel_partners.csv are synthetic mock records and must not be presented as real branches.",
+  "input_contract": {
+    "required_for_scheme_recommendation": [
+      "need or loan purpose"
+    ],
+    "recommended_profile_fields": [
+      "social category",
+      "annual family income",
+      "gender",
+      "age",
+      "state",
+      "occupation",
+      "project or course cost"
+    ],
+    "required_for_nearby_channels": [
+      "complete location address"
+    ]
+  },
+  "conversation_prompts": [
+    {
+      "id": "micro-finance-sc",
+      "input": "I am an SC entrepreneur from Delhi with an annual family income of 3 lakh rupees. I need a 1 lakh loan to start a small tailoring business.",
+      "expected_scheme_focus": ["Micro Finance Scheme"],
+      "expected_channel_flow": "Return scheme recommendations immediately, then ask whether the user wants nearby channel partners.",
+      "location_follow_up": "Connaught Place, New Delhi, Delhi",
+      "expected_mock_partner": "MOCK Delhi SCA Finance Desk"
+    },
+    {
+      "id": "term-loan-farmer",
+      "input": "I am an SC farmer in Uttar Pradesh with family income below 5 lakh rupees. I need a 20 lakh term loan for an agricultural project.",
+      "expected_scheme_focus": ["Term Loan Scheme"],
+      "expected_channel_flow": "Recommend the term loan without requiring location first.",
+      "location_follow_up": "Hazratganj, Lucknow, Uttar Pradesh",
+      "expected_mock_partner": "MOCK Lucknow SCA Enterprise Cell"
+    },
+    {
+      "id": "education-loan",
+      "input": "I am an SC student from West Bengal and need an educational loan of 12 lakh rupees for a professional course.",
+      "expected_scheme_focus": ["Educational Loan Scheme"],
+      "expected_channel_flow": "Return education-loan guidance first; nearby channels are optional.",
+      "location_follow_up": "B B D Bagh, Kolkata, West Bengal",
+      "expected_mock_partner": "MOCK Kolkata PSB Education Desk"
+    },
+    {
+      "id": "mahila-samriddhi",
+      "input": "I am a woman SC entrepreneur in Tamil Nadu with an annual family income of 2 lakh rupees. I need 1 lakh rupees for a home-based food business.",
+      "expected_scheme_focus": ["Mahila Samriddhi Yojana", "Micro Finance Scheme"],
+      "location_follow_up": "T Nagar, Chennai, Tamil Nadu",
+      "expected_mock_partner": "MOCK Chennai RRB Women Enterprise Desk"
+    },
+    {
+      "id": "no-location",
+      "input": "I am an SC beneficiary with income under 5 lakh rupees and I need help choosing between a micro finance loan and a term loan.",
+      "expected_scheme_focus": ["Micro Finance Scheme", "Term Loan Scheme"],
+      "expected_channel_flow": "Return scheme recommendations and say: If you want to know your nearby channel partners, enter your location address.",
+      "location_follow_up": null,
+      "expected_mock_partner": null
+    },
+    {
+      "id": "high-npa-filter",
+      "input": "I need a business loan and I live near Pune, Maharashtra.",
+      "location_follow_up": "Shivajinagar, Pune, Maharashtra",
+      "expected_scheme_focus": ["Micro Finance Scheme", "Term Loan Scheme"],
+      "expected_channel_flow": "Do not return MOCK Pune Disqualified High NPA Branch because its NPA rate is 8.2 percent.",
+      "excluded_mock_partner": "MOCK Pune Disqualified High NPA Branch"
+    },
+    {
+      "id": "fund-exhaustion-filter",
+      "input": "I need an SC business loan in Jharkhand.",
+      "location_follow_up": "Main Road, Ranchi, Jharkhand",
+      "expected_scheme_focus": ["Micro Finance Scheme", "Term Loan Scheme"],
+      "expected_channel_flow": "Do not return MOCK Ranchi Exhausted Fund Branch because available funds are zero.",
+      "excluded_mock_partner": "MOCK Ranchi Exhausted Fund Branch"
+    }
+  ],
+  "voice_prompts": [
+    "Please tell me what scheme or financial support you need. I can recommend schemes now. If you want nearby channel partners, you can say your location afterward.",
+    "If you want to know your nearby channel partners, say your complete village, district, and state address.",
+    "I could not locate that address. Please say a more complete address, including district and state."
+  ]
+}

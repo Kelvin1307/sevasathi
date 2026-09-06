@@ -1,0 +1,12 @@
+partner_name,partner_type,address,state,latitude,longitude,npa_rate,fund_available,fund_allocated
+MOCK Delhi SCA Finance Desk,State Channelizing Agency,"Connaught Place, New Delhi, Delhi",Delhi,28.6315,77.2167,2.1,18000000,25000000
+MOCK Lucknow SCA Enterprise Cell,State Channelizing Agency,"Hazratganj, Lucknow, Uttar Pradesh",Uttar Pradesh,26.8467,80.9462,3.4,12000000,20000000
+MOCK Bengaluru RRB Credit Hub,Regional Rural Bank,"Malleshwaram, Bengaluru, Karnataka",Karnataka,13.0035,77.5700,1.8,22000000,30000000
+MOCK Patna SC Development Branch,State Channelizing Agency,"Fraser Road, Patna, Bihar",Bihar,25.5941,85.1376,4.2,9000000,15000000
+MOCK Mumbai PSB Social Finance Desk,Public Sector Bank,"Fort, Mumbai, Maharashtra",Maharashtra,18.9322,72.8264,2.7,35000000,50000000
+MOCK Hyderabad RRB Livelihood Branch,Regional Rural Bank,"Abids, Hyderabad, Telangana",Telangana,17.3850,78.4867,3.1,14000000,22000000
+MOCK Jaipur SCA Micro Finance Cell,State Channelizing Agency,"M I Road, Jaipur, Rajasthan",Rajasthan,26.9124,75.7873,5.0,7000000,12000000
+MOCK Kolkata PSB Education Desk,Public Sector Bank,"B B D Bagh, Kolkata, West Bengal",West Bengal,22.5726,88.3639,2.9,16000000,24000000
+MOCK Chennai RRB Women Enterprise Desk,Regional Rural Bank,"T Nagar, Chennai, Tamil Nadu",Tamil Nadu,13.0418,80.2341,1.5,11000000,18000000
+MOCK Pune Disqualified High NPA Branch,Public Sector Bank,"Shivajinagar, Pune, Maharashtra",Maharashtra,18.5308,73.8475,8.2,25000000,40000000
+MOCK Ranchi Exhausted Fund Branch,State Channelizing Agency,"Main Road, Ranchi, Jharkhand",Jharkhand,23.3441,85.3096,3.0,0,18000000
