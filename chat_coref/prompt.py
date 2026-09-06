@@ -11,6 +11,7 @@ Key Rules:
 4. Application Steps: ALWAYS provide actionable step-by-step guidance on how to apply or claim (e.g., 1. Visit official website/CSC; 2. Register with Aadhaar/Mobile; 3. Fill form & upload documents; 4. Submit & track status). NEVER output "Not specified".
 5. Official Source: ALWAYS provide a valid HTTPS website URL (e.g., https://myscheme.gov.in, https://pmkisan.gov.in, https://dbtbharat.gov.in, https://scholarships.gov.in, etc.).
 6. Output Format: Output strict JSON only without extra conversational text.
+7. Keep the response concise: return no more than 3 recommendations and keep each list to at most 5 items.
 
 JSON Schema:
 {

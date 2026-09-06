@@ -38,7 +38,14 @@ class SchemeRAG:
             raise ValueError("GROQ_API_KEY environment variable is missing. Add it to your .env file.")
 
         print(f"[RAG] Loading Groq model: {model}")
-        self.llm = ChatGroq(model_name=model, groq_api_key=groq_api_key, temperature=0.2)
+        self.llm = ChatGroq(
+            model_name=model,
+            groq_api_key=groq_api_key,
+            temperature=0.2,
+            max_tokens=4000,
+            reasoning_format="hidden",
+            reasoning_effort="low",
+        )
         print("[RAG] Ready.")
 
     def format_user_profile(self, profile: Dict[str, Any]) -> str:
@@ -55,12 +62,51 @@ class SchemeRAG:
         if fence_match:
             cleaned = fence_match.group(1).strip()
 
-        # Find the first '{' to start JSON parsing
         brace_idx = cleaned.find("{")
-        if brace_idx != -1:
-            cleaned = cleaned[brace_idx:]
+        if brace_idx == -1:
+            raise json.JSONDecodeError("No JSON object found", cleaned, 0)
 
-        return json.loads(cleaned)
+        depth = 0
+        in_string = False
+        escaped = False
+        end_idx = None
+        for index in range(brace_idx, len(cleaned)):
+            character = cleaned[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == '"':
+                    in_string = False
+                continue
+            if character == '"':
+                in_string = True
+            elif character == "{":
+                depth += 1
+            elif character == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = index + 1
+                    break
+
+        if end_idx is None:
+            raise json.JSONDecodeError("Unterminated JSON object", cleaned, brace_idx)
+        return json.loads(cleaned[brace_idx:end_idx])
+
+    def _repair_json_response(self, content: str) -> Dict[str, Any]:
+        repair_prompt = """Convert the draft below into one valid JSON object.
+Use exactly these keys: summary (string), recommendations (array).
+Each recommendation must contain scheme_name, match_score, why_it_matches,
+eligibility, benefits, documents_required, application_steps, official_source,
+and confidence. Keep at most 3 recommendations. Return JSON only.
+
+Draft:
+{draft}
+"""
+        repaired = self.llm.invoke(repair_prompt.format(draft=content[:12000]))
+        repaired_content = repaired.content if hasattr(repaired, "content") else str(repaired)
+        return self.parse_json_response(repaired_content)
 
     def recommend(
         self,
@@ -119,11 +165,15 @@ Retrieved scheme knowledge:
             result = self.parse_json_response(content)
         except Exception as e:
             print(f"[RAG] JSON parse error: {e}")
-            result = {
-                "summary": "Retrieved recommendations based on your profile.",
-                "recommendations": [],
-                "_raw": content,
-            }
+            try:
+                result = self._repair_json_response(content)
+            except Exception as repair_error:
+                print(f"[RAG] JSON repair error: {repair_error}")
+                result = {
+                    "summary": "I could not format the recommendations. Please try again.",
+                    "recommendations": [],
+                    "_raw": content,
+                }
         result["status"] = "complete"
         result["location_resolved"] = bool(coordinates)
         result["best_recommendation"] = (result.get("recommendations") or [None])[0]

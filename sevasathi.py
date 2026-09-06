@@ -30,7 +30,7 @@ st.markdown(
 
 
 @st.cache_resource
-def get_rag() -> SchemeRAG:
+def get_rag(cache_version: str = "20260906-groq-reasoning-v2") -> SchemeRAG:
     return SchemeRAG()
 
 
@@ -97,7 +97,7 @@ def voice_page(rag: SchemeRAG) -> None:
         speak(prompt)
         st.session_state.voice_prompted = True
 
-    voice_input = st.audio_input("", label_visibility="collapsed")
+    voice_input = st.audio_input("Voice input", label_visibility="collapsed")
     if voice_input is None:
         return
 
