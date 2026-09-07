@@ -176,6 +176,9 @@ st.markdown(
     .badge-medium { background: #fef3c7; color: #92400e; }
     .badge-low    { background: #fee2e2; color: #991b1b; }
     .badge-score  { background: var(--saffron-pale); color: var(--saffron-deep); border: 1px solid var(--saffron-light); }
+    .score-track { height: 8px; background: #f3d9bd; border-radius: 99px; overflow: hidden; margin: 0.45rem 0 0.9rem; }
+    .score-fill { height: 100%; background: linear-gradient(90deg, #f5961e, #b04500); border-radius: 99px; }
+    .chat-intro { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1rem; }
 
     .scheme-detail-row {
         display: flex;
@@ -310,6 +313,8 @@ if "recommendation_results" not in st.session_state:
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "voice_enabled" not in st.session_state:
+    st.session_state.voice_enabled = False
 
 
 # ── Indian States List ────────────────────────────────────────────────────────
@@ -321,6 +326,101 @@ INDIAN_STATES_LIST = [
     "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim",
     "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
 ]
+
+QUESTION_FLOW = [
+    ("gender", "What is your gender?", "For example: female, male, or transgender."),
+    ("age", "How old are you?", "You can enter your age or an age group such as senior citizen."),
+    ("state", "Which state or Union Territory do you live in?", "Please provide the full state name."),
+    ("occupation", "What is your occupation or current status?", "For example: farmer, student, self-employed, or unemployed."),
+    ("category", "What is your social category?", "For example: General, EWS, OBC, SC, ST, or Minority."),
+    ("income", "What is your annual family income range?", "For example: below 1 lakh, 1 to 2.5 lakhs, or above 6 lakhs."),
+    ("need", "What kind of support do you need?", "For example: education, housing, healthcare, farming, pension, loan, or employment."),
+]
+
+
+def current_question() -> tuple[str, str, str]:
+    return QUESTION_FLOW[st.session_state.quiz_step - 1]
+
+
+def _answer_value(field: str, message: str) -> str:
+    """Normalize one conversational answer without calling the recommender."""
+    text = message.strip()
+    lowered = text.lower()
+    if field == "gender":
+        if any(word in lowered for word in ("transgender", "third gender")):
+            return "transgender"
+        if any(word in lowered for word in ("female", "woman", "women", "girl")):
+            return "female"
+        if any(word in lowered for word in ("male", "man", "men", "boy")):
+            return "male"
+    elif field == "age":
+        import re
+        match = re.search(r"\b(\d{1,3})\b", lowered)
+        if match and 1 <= int(match.group(1)) <= 110:
+            return f"{match.group(1)} years old"
+        age_groups = {
+            "youth": "17 years old", "minor": "17 years old", "young": "25 years old",
+            "adult": "45 years old", "senior": "65 years old", "elderly": "65 years old",
+        }
+        for keyword, value in age_groups.items():
+            if keyword in lowered:
+                return value
+    elif field == "state":
+        for state in INDIAN_STATES_LIST:
+            if state != "All India / Central" and state.lower() in lowered:
+                return state
+    elif field == "occupation":
+        occupation_values = {
+            "farmer": ("farmer", "agriculture", "kisan", "cultivation"),
+            "student": ("student", "school", "college", "studying"),
+            "self-employed": ("self-employed", "business", "entrepreneur", "shopkeeper", "vendor"),
+            "unemployed": ("unemployed", "jobless", "looking for work", "job seeker"),
+            "labour": ("labour", "labor", "worker", "daily wage", "construction"),
+            "homemaker": ("homemaker", "housewife", "pensioner", "retired"),
+        }
+        for value, keywords in occupation_values.items():
+            if any(keyword in lowered for keyword in keywords):
+                return value
+    elif field == "category":
+        categories = {"general": ("general", "open"), "EWS": ("ews", "economically weaker"), "OBC": ("obc", "backward"), "SC": ("sc", "scheduled caste", "dalit"), "ST": ("st", "scheduled tribe", "tribal"), "Minority": ("minority", "muslim", "sikh", "christian")}
+        for value, keywords in categories.items():
+            if any(keyword in lowered for keyword in keywords):
+                return value
+    elif field == "income":
+        if any(keyword in lowered for keyword in ("below", "bpl", "less than 1", "under 1", "low income")):
+            return "low income BPL below 1 lakh"
+        if any(keyword in lowered for keyword in ("1 to 2.5", "1-2.5", "one to two", "middle income")):
+            return "1 to 2.5 lakhs income"
+        if any(keyword in lowered for keyword in ("2.5 to 6", "2.5-6", "two to six")):
+            return "2.5 to 6 lakhs middle income"
+        if any(keyword in lowered for keyword in ("above", "over 6", "more than 6", "high income")):
+            return "above 6 lakhs income"
+    elif field == "need":
+        needs = {
+            "scholarship": ("education", "scholarship", "tuition", "study"),
+            "housing": ("housing", "house", "shelter", "home"),
+            "healthcare": ("health", "medical", "hospital", "medicine", "insurance"),
+            "agriculture": ("farm", "farming", "crop", "fertilizer", "kisan"),
+            "pension": ("pension", "senior", "old age", "retirement"),
+            "loan": ("loan", "credit", "business", "finance"),
+            "employment": ("job", "employment", "work", "skill", "livelihood"),
+        }
+        for value, keywords in needs.items():
+            if any(keyword in lowered for keyword in keywords):
+                return value
+    return ""
+
+
+def _sync_answer_to_profile(field: str, value: str) -> None:
+    coref = get_coref()
+    profile_field = {"income": "income_group"}.get(field, field)
+    if hasattr(coref.profile, profile_field):
+        setattr(coref.profile, profile_field, value)
+
+
+def append_assistant_message(content: str) -> None:
+    st.session_state.history.append({"role": "assistant", "content": content})
+    get_coref().add_to_history("assistant", content)
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
@@ -339,6 +439,25 @@ with st.sidebar:
     )
 
     st.markdown("---")
+
+    st.markdown("#### Your progress")
+    for step_number, (field, _, _) in enumerate(QUESTION_FLOW, start=1):
+        answer = st.session_state.quiz_answers.get(field, "")
+        if answer:
+            marker = "✅"
+            state_label = "Complete"
+        elif step_number == st.session_state.quiz_step and not st.session_state.quiz_completed:
+            marker = "◉"
+            state_label = "Current"
+        else:
+            marker = "○"
+            state_label = "Pending"
+        st.markdown(
+            f"<div class='profile-row'><span class='profile-key'>{marker} {step_number}. {field.title()}</span>"
+            f"<span class='profile-val'>{state_label}</span></div>",
+            unsafe_allow_html=True,
+        )
+    st.progress(sum(bool(st.session_state.quiz_answers.get(field)) for field, _, _ in QUESTION_FLOW) / 7)
 
     coref = get_coref()
     profile = coref.summarize()
@@ -373,8 +492,19 @@ with st.sidebar:
         st.session_state.quiz_completed = False
         st.session_state.recommendation_results = None
         st.session_state.history = []
+        st.session_state.conversation_started = False
+        st.session_state.voice_enabled = False
         coref.reset()
         st.rerun()
+
+    st.markdown("---")
+    st.session_state.voice_enabled = st.toggle(
+        "🎙 Voice chat",
+        value=st.session_state.voice_enabled,
+        help="Enable microphone input for the conversation.",
+    )
+    if st.session_state.voice_enabled:
+        st.caption("Voice input is enabled. You can still type instead.")
 
     st.markdown("---")
     st.markdown(
@@ -454,6 +584,7 @@ def render_scheme_results(result: dict, key_prefix: str = "main") -> None:
                     <span class="badge {badge_cls}">✅ {confidence} Match</span>
                     <span class="badge badge-score">Relevance Score: {score_pct}%</span>
                 </div>
+                <div class="score-track"><div class="score-fill" style="width:{max(0, min(score_pct, 100))}%"></div></div>
                 <div class="scheme-detail-row">
                     <span class="scheme-detail-icon">💡</span>
                     <span><span class="scheme-detail-label">Why it matches: </span>{why}</span>
@@ -487,8 +618,128 @@ def render_scheme_results(result: dict, key_prefix: str = "main") -> None:
                 clean_url = source if str(source).startswith("http") else f"https://www.google.com/search?q={str(source).replace(' ', '+')}"
                 link_text = source if str(source).startswith("http") else f"Official {source} Portal"
                 st.markdown(f"🔗 **Official Website / Ministry:** [{link_text}]({clean_url})")
+                st.link_button("Apply on official portal", clean_url, key=f"apply_{key_prefix}_{i}")
 
 
+# ── Conversational Eligibility Flow ───────────────────────────────────────────
+def render_chat_history() -> None:
+    for message in st.session_state.history:
+        with st.chat_message(message["role"], avatar="🧑" if message["role"] == "user" else "🌾"):
+            st.markdown(message["content"])
+
+
+def add_user_turn(message: str) -> None:
+    st.session_state.history.append({"role": "user", "content": message})
+    get_coref().add_to_history("user", message)
+
+
+def ask_next_question() -> None:
+    field, question, hint = current_question()
+    append_assistant_message(f"**{question}**\n\n{hint}")
+
+
+def process_eligibility_answer(message: str) -> None:
+    field, _, _ = current_question()
+    value = _answer_value(field, message)
+    if not value:
+        append_assistant_message("I could not identify that answer. Please provide a clear response for this question.")
+        return
+
+    st.session_state.quiz_answers[field] = value
+    _sync_answer_to_profile(field, value)
+    st.session_state.quiz_step += 1
+    if st.session_state.quiz_step > len(QUESTION_FLOW):
+        st.session_state.quiz_completed = True
+        append_assistant_message("Thanks. I have all seven details. I am now checking the scheme database for your eligibility.")
+    else:
+        ask_next_question()
+
+
+if "conversation_started" not in st.session_state:
+    st.session_state.conversation_started = False
+
+if not st.session_state.conversation_started:
+    st.session_state.conversation_started = True
+    append_assistant_message("Hello, I am SevaBot. I will ask seven short questions, one at a time, before finding suitable schemes.")
+    ask_next_question()
+
+if not st.session_state.quiz_completed:
+    st.markdown('<p class="chat-intro">Answer naturally in the chat. Your progress and saved details stay visible in the sidebar.</p>', unsafe_allow_html=True)
+    render_chat_history()
+    user_chat = st.chat_input("Type your answer...")
+    if st.session_state.voice_enabled:
+        voice_input = st.audio_input("Or answer by voice", label_visibility="visible")
+        if voice_input is not None:
+            try:
+                from chat_coref.voice import transcribe_audio
+                user_chat = transcribe_audio(voice_input.getvalue(), "eligibility-answer.wav")
+            except Exception as exc:
+                st.error(f"Voice input unavailable: {exc}")
+    if user_chat:
+        add_user_turn(user_chat)
+        process_eligibility_answer(user_chat)
+        st.rerun()
+    st.stop()
+
+
+# ── Completed profile and results ─────────────────────────────────────────────
+if st.session_state.quiz_completed and st.session_state.recommendation_results is None:
+    ans = st.session_state.quiz_answers
+    coref = get_coref()
+    summary_query = (
+        f"I am {ans.get('age', '')} and {ans.get('gender', '')} from {ans.get('state', '')}. "
+        f"Category: {ans.get('category', '')}, Occupation: {ans.get('occupation', '')}, "
+        f"Income: {ans.get('income', '')}. Seeking: {ans.get('need', '')}."
+    )
+    with st.spinner("Analyzing your completed eligibility profile..."):
+        rag = get_rag()
+        st.session_state.recommendation_results = rag.recommend(
+            user_message=summary_query,
+            user_profile=coref.summarize(),
+            chat_history=coref.history,
+        )
+    result_text = json.dumps(st.session_state.recommendation_results, ensure_ascii=False)
+    coref.add_to_history("assistant", result_text)
+    st.session_state.history.append({"role": "assistant", "content": st.session_state.recommendation_results.get("summary", "Your recommendations are ready.")})
+
+render_chat_history()
+render_scheme_results(st.session_state.recommendation_results, key_prefix="initial_results")
+
+st.markdown('<p class="section-title">💬 Continue your conversation</p>', unsafe_allow_html=True)
+st.caption("Ask about eligibility, documents, benefits, application steps, or request a fresh scheme list.")
+user_chat = st.chat_input("Ask a follow-up question...")
+if st.session_state.voice_enabled:
+    voice_followup = st.audio_input("Or ask by voice", label_visibility="visible")
+    if voice_followup is not None:
+        try:
+            from chat_coref.voice import transcribe_audio
+            user_chat = transcribe_audio(voice_followup.getvalue(), "follow-up-question.wav")
+        except Exception as exc:
+            st.error(f"Voice input unavailable: {exc}")
+if user_chat:
+    rag = get_rag()
+    coref = get_coref()
+    add_user_turn(user_chat)
+    re_recommend_keywords = (
+        "regive", "re-give", "recalculate", "new schemes", "update schemes",
+        "recommend again", "re-evaluate", "altered details", "change profile",
+        "different schemes", "refresh schemes", "re-recommend",
+    )
+    if any(keyword in user_chat.lower() for keyword in re_recommend_keywords):
+        response = rag.recommend(user_chat, coref.summarize(), coref.history)
+        st.session_state.recommendation_results = response
+        response_text = response.get("summary", "I updated your recommendations.")
+    else:
+        response_text = rag.chat_answer(user_chat, coref.summarize(), coref.history)
+    append_assistant_message(response_text)
+    st.rerun()
+
+st.stop()
+
+
+# ── Legacy card flow retained below for reference ─────────────────────────────
+# The active application exits above. The original controls remain below so the
+# previous implementation can be compared or removed in a later cleanup.
 # ── Interactive 7-Step Questionnaire Flow ──────────────────────────────────────
 if not st.session_state.quiz_completed:
     current_step = st.session_state.quiz_step
@@ -784,6 +1035,26 @@ else:
     summary_query = f"I am a {ans.get('age', '')} {ans.get('gender', '')} from {ans.get('state', '')}. Category: {ans.get('category', '')}, Occupation: {ans.get('occupation', '')}, Income: {ans.get('income', '')}. Seeking: {ans.get('need', '')}."
     coref.update_from_message(summary_query)
 
+    # Directly inject quiz answers into profile to guarantee accuracy —
+    # NLP extraction from the synthetic sentence can miss or misread values.
+    import re as _re
+    if ans.get("state"):
+        coref.profile.state = ans["state"]
+    if ans.get("gender"):
+        coref.profile.gender = ans["gender"]
+    if ans.get("occupation"):
+        coref.profile.occupation = ans["occupation"]
+    if ans.get("category"):
+        coref.profile.category = ans["category"]
+    if ans.get("income"):
+        coref.profile.income_group = ans["income"]
+    if ans.get("need"):
+        coref.profile.need = ans["need"]
+    if ans.get("age"):
+        _m = _re.search(r"(\d+)", ans["age"])
+        if _m:
+            coref.profile.age = _m.group(1)
+
     # Display profile pill summary
     p_pills = ""
     for k, v in ans.items():
@@ -801,6 +1072,7 @@ else:
                 chat_history=coref.history,
             )
             st.session_state.recommendation_results = results
+
 
     # Render Scheme Results Cards
     render_scheme_results(st.session_state.recommendation_results, key_prefix="initial_results")

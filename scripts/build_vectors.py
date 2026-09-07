@@ -24,6 +24,30 @@ SCHEMA_VERSION = 1
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 120
 
+# All Indian states and UTs for state-tagging scheme documents
+INDIAN_STATES_FOR_TAGGING = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+    "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim",
+    "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+    "West Bengal", "Delhi", "Jammu", "Kashmir", "Ladakh", "Puducherry",
+    "Chandigarh", "Andaman", "Nicobar", "Lakshadweep", "Andaman and Nicobar",
+    "Dadra", "Daman", "Diu",
+]
+
+
+def extract_state_from_text(*texts: str) -> str:
+    """Scan one or more text fields for a known Indian state/UT name.
+
+    Returns the matched state name, or ``'India'`` for central/national schemes.
+    """
+    combined = " ".join(str(t) for t in texts if t).lower()
+    for state in INDIAN_STATES_FOR_TAGGING:
+        if state.lower() in combined:
+            return state
+    return "India"
+
 
 def number_from_text(value: Any) -> float | None:
     if value is None:
@@ -49,7 +73,17 @@ def normalize_metadata(values: dict[str, Any], source: str, file_name: str = "")
     else:
         max_loan = number_from_text(normalized.get("max_loan"))
 
-    state = str(normalized.get("state", normalized.get("location", "India")))
+    # Prefer an explicit 'state'/'location' column; otherwise extract from
+    # scheme_name and tags so that state-specific schemes are properly tagged.
+    raw_state = normalized.get("state") or normalized.get("location") or ""
+    if raw_state and str(raw_state).strip().lower() not in ("", "nan", "none", "india", "all india", "national"):
+        state = str(raw_state).strip()
+    else:
+        state = extract_state_from_text(
+            scheme_name,
+            normalized.get("tags", ""),
+            file_name,
+        )
     return {
         "source": source,
         "file_name": file_name,

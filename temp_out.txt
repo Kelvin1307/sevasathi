@@ -1,0 +1,36 @@
+﻿India                2881
+Goa                    59
+West Bengal            54
+Gujarat                53
+Haryana                51
+Jharkhand              32
+Tamil Nadu             25
+Bihar                  23
+Madhya Pradesh         19
+Punjab                 14
+Assam                  13
+Delhi                  11
+Rajasthan              11
+Maharashtra            11
+Puducherry             11
+Chhattisgarh           10
+Karnataka              10
+Telangana               9
+Meghalaya               9
+Andaman                 9
+Uttar Pradesh           9
+Sikkim                  9
+Tripura                 9
+Odisha                  8
+Jammu                   7
+Uttarakhand             6
+Nagaland                6
+Himachal Pradesh        5
+Lakshadweep             5
+Manipur                 5
+Kerala                  4
+Chandigarh              3
+Mizoram                 3
+Ladakh                  2
+Arunachal Pradesh       2
+Andhra Pradesh          2

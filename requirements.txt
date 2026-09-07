@@ -14,3 +14,4 @@ torchvision
 groq
 edge-tts
 geopy
+streamlit-geolocation

@@ -5,7 +5,7 @@
   "chunk_overlap": 120,
   "document_count": 5554,
   "chunk_count": 53205,
-  "built_at": "2026-09-06T08:30:50.000094+00:00",
+  "built_at": "2026-09-07T13:41:14.896183+00:00",
   "source_hashes": {
     "gov_myscheme\\.git\\config": "444ee63f3a2e34c63eafff3df82c76aca8741d171141cac328e367e5b9ef57de",
     "gov_myscheme\\.git\\description": "85ab6c163d43a17ea9cf7788308bca1466f1b0a8d1cc92e26e9bf63da4062aee",
@@ -24,7 +24,7 @@
     "gov_myscheme\\.git\\hooks\\push-to-checkout.sample": "a53d0741798b287c6dd7afa64aee473f305e65d3f49463bb9d7408ec3b12bf5f",
     "gov_myscheme\\.git\\hooks\\sendemail-validate.sample": "44ebfc923dc5466bc009602f0ecf067b9c65459abfe8868ddc49b78e6ced7a92",
     "gov_myscheme\\.git\\hooks\\update.sample": "8d5f2fa83e103cf08b57eaa67521df9194f45cbdbcb37da52ad586097a14d106",
-    "gov_myscheme\\.git\\index": "46c3c8d165778834d539f0f0295d6d0090dd379aecb0697cdc85f4de46f99f73",
+    "gov_myscheme\\.git\\index": "547b6dab6b70588f5efc082893c594583b2543b72c60c2365211782ca8bae92f",
     "gov_myscheme\\.git\\info\\exclude": "6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1",
     "gov_myscheme\\.git\\logs\\HEAD": "3fd3b5c51bb4edc17cf34f5a86ad4ca53881a463370aff33f4bbca73423c0808",
     "gov_myscheme\\.git\\logs\\refs\\heads\\main": "3fd3b5c51bb4edc17cf34f5a86ad4ca53881a463370aff33f4bbca73423c0808",

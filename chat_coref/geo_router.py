@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 import math
 import os
 import re
@@ -10,11 +11,25 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PARTNER_FILE = BASE_DIR / "channel_partners.csv"
 DEFAULT_NPA_MAX = 7.5
+LOGGER = logging.getLogger(__name__)
 LOCATION_HINTS = {
     "delhi", "new delhi", "lucknow", "uttar pradesh", "bengaluru", "bangalore", "karnataka",
     "patna", "bihar", "mumbai", "maharashtra", "hyderabad", "telangana", "jaipur", "rajasthan",
     "kolkata", "west bengal", "chennai", "tamil nadu", "pune", "jharkhand", "ranchi",
 }
+
+
+def _setting(name: str, default: str = "") -> str:
+    """Read local environment settings or Streamlit Cloud secrets."""
+    environment_value = os.getenv(name)
+    if environment_value is not None:
+        return environment_value
+    try:
+        import streamlit as st
+        secret_value = st.secrets.get(name)
+    except Exception:
+        secret_value = None
+    return str(secret_value) if secret_value is not None else default
 
 
 def haversine_km(latitude_a: float, longitude_a: float, latitude_b: float, longitude_b: float) -> float:
@@ -36,12 +51,14 @@ def load_partners(path: str | Path = DEFAULT_PARTNER_FILE) -> list[dict[str, Any
 
 def geocode_address(address: str) -> tuple[float, float] | None:
     """Resolve an address with Nominatim when geocoding is enabled."""
-    if not address.strip() or os.getenv("GEOCODING_ENABLED", "false").lower() != "true":
+    if not address.strip() or _setting("GEOCODING_ENABLED", "false").strip().lower() != "true":
         return None
     try:
         from geopy.geocoders import Nominatim
-        location = Nominatim(user_agent="nyayasetu-ai").geocode(address, timeout=8)
-    except Exception:
+        user_agent = _setting("GEOCODING_USER_AGENT", "sevasathi-government-scheme-assistant")
+        location = Nominatim(user_agent=user_agent).geocode(address, timeout=8)
+    except Exception as exc:
+        LOGGER.warning("Geocoding request failed: %s", exc)
         return None
     return (float(location.latitude), float(location.longitude)) if location else None
 
@@ -61,7 +78,7 @@ def rank_partners(
     latitude: float,
     longitude: float,
     partners: list[dict[str, Any]],
-    limit: int = 5,
+    limit: int = 1,
     npa_max: float = DEFAULT_NPA_MAX,
     distance_decay: float = 0.02,
 ) -> list[dict[str, Any]]:
@@ -81,4 +98,4 @@ def rank_partners(
         health = 0.5 * (1 - npa / npa_max) + 0.5 * (available / allocated)
         score = health * math.exp(-distance_decay * distance)
         ranked.append({**partner, "distance_km": round(distance, 2), "health_score": round(score, 4)})
-    return sorted(ranked, key=lambda item: item["health_score"], reverse=True)[:limit]
+    return sorted(ranked, key=lambda item: item["distance_km"])[:limit]

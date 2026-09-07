@@ -231,7 +231,7 @@ streamlit run sevasathi.py
 The application should provide:
 
 - conversational text input;
-- microphone input and transcript display;
+- microphone input with internal transcription;
 - spoken assistant responses;
 - quick-start categories for farmer, student, women support, housing, healthcare, employment, senior citizen, and disability;
 - profile summary using `ChatCoref`;
@@ -261,7 +261,7 @@ The router must:
 - calculate the health score using NPA, fund availability, and distance decay;
 - return ranked eligible partners.
 
-Set `GEOCODING_ENABLED=true` only when the deployment is configured to use the geocoder. Without resolved coordinates, the system must ask for a more complete address and must not claim to have made a geo-spatial recommendation.
+Set `GEOCODING_ENABLED=true` only when the deployment is configured to use the geocoder. This may be provided through the local environment or Streamlit Cloud secrets. Without resolved coordinates, the system must ask for a more complete address and must not claim to have made a geo-spatial recommendation.
 
 Use `st.session_state` for conversation history, location, voice stage, and the loaded `SchemeRAG` instance. Loading the RAG instance may happen once per session, but it must only load the existing vector artifact.
 
@@ -325,7 +325,7 @@ When only application code changes, do not rebuild vectors. Restarting either St
 - [ ] Edge TTS uses `en-US-JennyNeural`.
 - [ ] EMI calculations use the shared finance module.
 - [ ] No API key is committed to the repository.
-- [ ] Recommendations require a resolved beneficiary location.
+- [ ] Recommendations work without a location; partner routing requires resolved coordinates.
 - [ ] Partner routing applies NPA and fund exhaustion filters.
 
 ## 14. Implementation Order
@@ -338,4 +338,106 @@ When only application code changes, do not rebuild vectors. Restarting either St
 6. Update `streamlit.py` to use the shared services.
 7. Add `chat_coref/voice.py`.
 8. Add `sevasathi.py` with conversational and voice workflows.
+
+## 15. Current Completed SevaSathi Flow
+
+`sevasathi.py` currently implements a stateful, turn-by-turn conversation using
+`st.session_state` and `ChatCoref`.
+
+### Text conversation lifecycle
+
+1. `start_msg()` initializes a new conversation with a greeting. It runs once
+    per Streamlit session and adds the greeting to both the visible transcript
+    and the coreference history.
+2. The user submits one message through `st.chat_input`.
+3. `msg_handle()` updates the profile from that message and stores the user
+    turn in both histories.
+4. If this is the first request, or the user asks for new or recalculated
+    schemes, `SchemeRAG.recommend()` returns structured scheme recommendations.
+5. If recommendations already exist, later messages are treated as follow-up
+    questions and `SchemeRAG.chat_answer()` returns a natural-language answer
+    using the profile and retrieved scheme knowledge.
+6. The assistant response is stored in both histories before the next turn.
+7. The page reruns so the complete transcript remains visible.
+8. `end_msg()` is available through the **New conversation** button. It clears
+    the profile, transcript, location, and pending location request.
+
+This allows the user to provide information incrementally, for example:
+
+```text
+User: I need help with education
+Assistant: [scheme recommendations]
+User: I am 20 years old
+Assistant: [follow-up answer using the updated profile]
+User: I live in Bihar
+Assistant: [follow-up answer; location can also be resolved if enabled]
+```
+
+### Text UI
+
+The text interface provides:
+
+- a SevaSathi hero header;
+- a persistent chat transcript with user and assistant messages;
+- structured recommendation rendering with eligibility, benefits, documents,
+  application steps, and official source;
+- a voice-mode button;
+- a New conversation button;
+- a nearby channel-partner section;
+- address-based location input and geocoding;
+- current-device location permission through the browser when the optional
+  `streamlit-geolocation` package is installed;
+- graceful fallback to manual address entry when browser permission or device
+  location is unavailable.
+
+### Location flow
+
+Location is optional for scheme recommendations. The user can choose **Use my
+current location**, which requests browser coordinates. If coordinates are
+returned, they are used directly to rank nearby eligible channel partners.
+Otherwise, the user can enter a complete address and choose **Find nearby
+channels**. The address is resolved through Nominatim when geocoding is enabled.
+
+Geocoding configuration supports both local environment variables and
+Streamlit Cloud secrets:
+
+```toml
+GEOCODING_ENABLED = "true"
+GEOCODING_USER_AGENT = "sevasathi-government-scheme-assistant"
+```
+
+When location is unresolved, recommendations are still returned, but the UI
+does not claim that nearby partners were found.
+
+### Voice-only flow
+
+The microphone button opens a separate voice-only mode. The user records audio,
+Groq Whisper transcribes it internally, SevaSathi generates a recommendation,
+and Edge TTS speaks the response. The voice page does not display a text
+transcript or text recommendation response. It keeps voice location separately
+and can resolve a spoken location when the message contains a supported
+location hint.
+
+### Shared intelligence features completed
+
+- FAISS vector artifact loading at runtime;
+- profile extraction and cross-turn coreference through `ChatCoref`;
+- Groq-backed structured recommendations;
+- natural-language follow-up answers;
+- deterministic eligibility metadata checks;
+- official scheme source, document, benefit, and application-step fields;
+- Haversine distance and partner health-score ranking;
+- rejection of partners with excessive NPA or unavailable funds;
+- local `.env` and Streamlit secret configuration for geocoding;
+- missing knowledge-index error handling.
+
+### Known deployment requirements
+
+- install all packages from `requirements.txt`;
+- retain `cache/faiss_index/` in the deployment or rebuild it with the offline
+  vector-build command;
+- configure `GROQ_API_KEY` in `.env` locally or in Streamlit secrets;
+- configure `GEOCODING_ENABLED` as a string value of `"true"` for address
+  geocoding;
+- use HTTPS in deployment for browser geolocation permission to work reliably.
 9. Run both Streamlit entry points against the generated artifact.

@@ -74,8 +74,14 @@ def _metadata_matches(metadata: dict[str, Any], profile: dict[str, Any]) -> bool
     """Reject explicit metadata conflicts while allowing generic documents."""
     profile_state = str(profile.get("state", "")).strip().lower()
     document_state = str(metadata.get("state", "")).strip().lower()
-    if profile_state and document_state and document_state not in {"india", "all india", "national", profile_state}:
-        return False
+
+    # National/central schemes are eligible for everyone
+    _NATIONAL = {"india", "all india", "national", "central", "all india / central", ""}
+
+    if profile_state and profile_state not in _NATIONAL and document_state not in _NATIONAL:
+        # Both sides have a real state: they must match (case-insensitive)
+        if document_state != profile_state:
+            return False
 
     category = str(profile.get("category", profile.get("social_category", ""))).strip().lower()
     required_category = str(metadata.get("social_category", "")).strip().lower()
