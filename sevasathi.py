@@ -1,4 +1,4 @@
-"""SevaSathi conversational and voice-only interface.
+"""SevaSathi conversational interface.
 
 Run with: streamlit run sevasathi.py
 """
@@ -42,24 +42,13 @@ def get_rag(cache_version: str = "20260906-groq-reasoning-v2") -> SchemeRAG:
     return SchemeRAG()
 
 
-def speak(text: str) -> None:
-    try:
-        from chat_coref.voice import synthesize_speech
-        audio = synthesize_speech(text)
-        if audio:
-            st.audio(audio, format="audio/mp3", autoplay=True)
-    except Exception as exc:
-        st.error(f"Voice response unavailable: {exc}")
-
-
 QUESTION_FLOW = [
     ("gender", "What is your gender?", "For example: female, male, or transgender."),
     ("age", "How old are you?", "You can enter your age or an age group such as senior citizen."),
     ("state", "Which state or Union Territory do you live in?", "Please provide the full state name."),
-    ("occupation", "What is your occupation or current status?", "For example: farmer, student, self-employed, or unemployed."),
     ("category", "What is your social category?", "For example: General, EWS, OBC, SC, ST, or Minority."),
-    ("income", "What is your annual family income range?", "For example: below 1 lakh, 1 to 2.5 lakhs, or above 6 lakhs."),
-    ("need", "What kind of support do you need?", "For example: education, housing, healthcare, farming, pension, loan, or employment."),
+    ("income", "What is your annual family income?", "For example: 2 LPA, 15k per month, below 1 lakh, or above 6 lakhs."),
+    ("need", "How much loan or financial aid do you need, and for what purpose?", "For example: 2 lakh business loan, 50,000 for education, or medical financial aid."),
 ]
 
 
@@ -94,11 +83,6 @@ def _answer_value(field: str, message: str) -> str:
         for state in states:
             if state.lower() in text:
                 return state
-    elif field == "occupation":
-        values = {"farmer": ("farmer", "agriculture", "kisan"), "student": ("student", "school", "college", "studying"), "self-employed": ("self-employed", "business", "entrepreneur", "shopkeeper", "startup owner", "startup founder", "founder"), "unemployed": ("unemployed", "jobless", "job seeker"), "labour": ("labour", "labor", "worker", "daily wage"), "homemaker": ("homemaker", "housewife", "retired", "pensioner")}
-        for value, keywords in values.items():
-            if any(keyword in text for keyword in keywords):
-                return value
     elif field == "category":
         values = {"General": ("general", "open category"), "EWS": ("ews", "economically weaker"), "OBC": ("obc", "backward class"), "SC": ("scheduled caste", "dalit"), "ST": ("scheduled tribe", "tribal"), "Minority": ("minority", "muslim", "sikh", "christian")}
         for value, keywords in values.items():
@@ -107,6 +91,20 @@ def _answer_value(field: str, message: str) -> str:
             if any(keyword in text for keyword in keywords):
                 return value
     elif field == "income":
+        qualified_income = re.search(
+            r"(?:below|under|less than)\s+(?:rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)\s*(lpa|lakhs?|lakh|k|thousand|crore|crores)?",
+            text,
+        )
+        if qualified_income:
+            amount = float(qualified_income.group(1).replace(",", ""))
+            unit = qualified_income.group(2) or ""
+            if unit in {"k", "thousand"}:
+                amount *= 1_000
+            elif unit in {"lakh", "lakhs", "lpa"}:
+                amount *= 100_000
+            elif unit in {"crore", "crores"}:
+                amount *= 10_000_000
+            return f"annual income below Rs {int(amount):,}"
         if any(keyword in text for keyword in ("below", "bpl", "less than 1", "under 1", "low income")):
             return "low income BPL below 1 lakh"
         if any(keyword in text for keyword in ("1 to 2.5", "1-2.5", "less than 2.5", "under 2.5", "below 2.5", "2.5 lpa", "2.5 lakh", "one to two", "middle income")):
@@ -115,11 +113,55 @@ def _answer_value(field: str, message: str) -> str:
             return "2.5 to 6 lakhs middle income"
         if any(keyword in text for keyword in ("above", "over 6", "more than 6", "high income")):
             return "above 6 lakhs income"
+        amount_match = re.search(r"(?:rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)\s*(lpa|lakhs?|lakh|k|thousand|crore|crores)?\s*(?:per\s*month|monthly|a\s*month|/\s*month)?", text)
+        if amount_match:
+            amount = float(amount_match.group(1).replace(",", ""))
+            unit = amount_match.group(2) or ""
+            has_currency = bool(re.search(r"(?:rs\.?|₹)", text))
+            has_income_context = any(keyword in text for keyword in ("income", "salary", "earn", "per month", "monthly", "a month"))
+            if not unit and not has_currency and not has_income_context:
+                return ""
+            monthly = bool(re.search(r"per\s*month|monthly|a\s*month|/\s*month", text))
+            if unit in {"k", "thousand"}:
+                amount *= 1_000
+            elif unit in {"lakh", "lakhs", "lpa"}:
+                amount *= 100_000
+            elif unit in {"crore", "crores"}:
+                amount *= 10_000_000
+            if monthly:
+                amount *= 12
+            if amount > 0:
+                return f"annual income Rs {int(amount):,}"
     elif field == "need":
-        values = {"scholarship": ("education", "scholarship", "tuition", "study"), "housing": ("housing", "house", "shelter", "home"), "healthcare": ("health", "medical", "hospital", "medicine", "insurance"), "agriculture": ("farm", "farming", "crop", "fertilizer", "kisan"), "pension": ("pension", "senior", "old age", "retirement"), "loan": ("loan", "credit", "business", "finance", "startup"), "employment": ("job", "employment", "work", "skill", "livelihood")}
-        for value, keywords in values.items():
-            if any(keyword in text for keyword in keywords):
-                return value
+        need_clause_match = re.search(
+            r"\b(?:i\s+)?(?:need|want|require|am\s+seeking|seeking)\b(.+?)(?:[.!?]|$)",
+            text,
+        )
+        need_clause = need_clause_match.group(1).strip() if need_clause_match else text
+        amount_match = re.search(r"(?:rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)\s*(lpa|lakhs?|lakh|k|thousand|crore|crores)?", need_clause)
+        if amount_match:
+            amount = float(amount_match.group(1).replace(",", ""))
+            unit = amount_match.group(2) or ""
+            has_currency = bool(re.search(r"(?:rs\.?|₹)", text))
+            has_need_context = any(keyword in text for keyword in (
+                "loan", "aid", "need", "amount", "financial", "funding", "assistance", "money",
+                "support", "for education", "for housing", "for health", "for medical",
+                "for business", "for farming", "for agriculture", "for treatment",
+            ))
+            if not unit and not has_currency and not has_need_context:
+                return ""
+            if unit and not has_currency and not has_need_context:
+                return ""
+            if unit in {"k", "thousand"}:
+                amount *= 1_000
+            elif unit in {"lakh", "lakhs", "lpa"}:
+                amount *= 100_000
+            elif unit in {"crore", "crores"}:
+                amount *= 10_000_000
+            purpose = re.sub(r"\s+", " ", need_clause).strip()
+            return f"financial aid / loan request Rs {int(amount):,}: {purpose}"
+        if any(keyword in text for keyword in ("loan", "financial aid", "financial help", "assistance", "funding", "money")):
+            return f"financial aid / loan request: {need_clause}"
     return ""
 
 
@@ -198,7 +240,7 @@ def start_msg() -> None:
     """Start a text conversation once per Streamlit session."""
     if st.session_state.history:
         return
-    append_assistant_message("Hello, I am SevaSathi. I will ask seven short questions, one at a time, before finding suitable schemes.")
+    append_assistant_message("Hello, I am SevaSathi. I will ask six short questions, one at a time, before finding suitable schemes.")
     _, question, hint = current_question()
     append_assistant_message(f"**{question}**\n\n{hint}")
 
@@ -242,7 +284,7 @@ def msg_handle(user_input: str, rag: SchemeRAG) -> str | dict:
             response = f"**{question}**\n\n{hint}"
         else:
             st.session_state.quiz_completed = True
-            response = "Thanks. I have all seven details. I am now checking the scheme database for your eligibility."
+            response = "Thanks. I have all six details. I am now checking the scheme database for your eligibility."
         append_assistant_message(response)
         return response
 
@@ -335,60 +377,6 @@ def request_device_location(rag: SchemeRAG) -> None:
     st.rerun()
 
 
-def voice_page(rag: SchemeRAG) -> None:
-    """Voice-only interaction page: audio in, audio out, no transcript or text chat."""
-    if st.button("←", key="leave_voice", help="Return to text conversation"):
-        st.query_params.clear()
-        st.rerun()
-
-    st.markdown("<div class='hero'><h1>SevaSathi Voice</h1><p>Speak naturally. I will listen and answer aloud.</p></div>", unsafe_allow_html=True)
-    if "voice_stage" not in st.session_state:
-        st.session_state.voice_stage = "request"
-    if "voice_location" not in st.session_state:
-        st.session_state.voice_location = None
-    if "voice_prompted" not in st.session_state:
-        st.session_state.voice_prompted = False
-
-    if not st.session_state.voice_prompted:
-        prompt = "Please tell me what scheme or financial support you need. I can recommend schemes now. If you want nearby channel partners, you can say your location afterward."
-        speak(prompt)
-        st.session_state.voice_prompted = True
-
-    voice_input = st.audio_input("Voice input", label_visibility="collapsed")
-    if voice_input is None:
-        return
-
-    try:
-        from chat_coref.voice import transcribe_audio
-        spoken_text = transcribe_audio(voice_input.getvalue(), "voice-input.wav")
-        result = msg_handle(spoken_text, rag)
-        st.session_state.voice_prompted = False
-        if st.session_state.quiz_completed and st.session_state.recommendation_results is None:
-            answers = st.session_state.quiz_answers
-            summary_query = (
-                f"I am {answers['age']} and {answers['gender']} from {answers['state']}. "
-                f"Category: {answers['category']}, Occupation: {answers['occupation']}, "
-                f"Income: {answers['income']}. Seeking: {answers['need']}."
-            )
-            st.session_state.recommendation_results = rag.recommend(
-                summary_query,
-                st.session_state.chat_coref.summarize(),
-                st.session_state.chat_coref.history,
-                st.session_state.get("location"),
-            )
-        if isinstance(result, dict):
-            response = result.get("summary", "I found eligible schemes for you.")
-        elif st.session_state.recommendation_results:
-            response = st.session_state.recommendation_results.get("summary", result)
-        else:
-            response = result
-        speak(response)
-        st.session_state.voice_stage = "request"
-    except Exception as exc:
-        st.session_state.voice_prompted = False
-        speak(f"I could not process that voice input. {exc}")
-
-
 if "chat_coref" not in st.session_state:
     st.session_state.chat_coref = ChatCoref()
 if "history" not in st.session_state:
@@ -401,8 +389,6 @@ if "quiz_completed" not in st.session_state:
     st.session_state.quiz_completed = False
 if "recommendation_results" not in st.session_state:
     st.session_state.recommendation_results = None
-if "voice_enabled" not in st.session_state:
-    st.session_state.voice_enabled = False
 if "location_request_active" not in st.session_state:
     st.session_state.location_request_active = False
 
@@ -410,10 +396,6 @@ try:
     rag = get_rag()
 except KnowledgeIndexError as exc:
     st.error(str(exc))
-    st.stop()
-
-if st.query_params.get("mode") == "voice":
-    voice_page(rag)
     st.stop()
 
 with st.sidebar:
@@ -435,15 +417,12 @@ with st.sidebar:
     else:
         st.caption("Your saved answers will appear here.")
 
-    st.markdown("---")
-    st.session_state.voice_enabled = st.toggle("🎙 Voice chat", value=st.session_state.voice_enabled, help="Enable microphone answers in the conversation.")
     if st.button("🔄 New conversation", use_container_width=True):
         end_msg()
         st.session_state.quiz_step = 1
         st.session_state.quiz_answers = {field: "" for field, _, _ in QUESTION_FLOW}
         st.session_state.quiz_completed = False
         st.session_state.recommendation_results = None
-        st.session_state.voice_enabled = False
         st.rerun()
 
     st.markdown("---")
@@ -485,14 +464,6 @@ render_history()
 
 if not st.session_state.quiz_completed:
     user_input = st.chat_input("Answer the current question...")
-    if st.session_state.voice_enabled:
-        voice_input = st.audio_input("Or answer by voice", label_visibility="visible")
-        if voice_input is not None:
-            try:
-                from chat_coref.voice import transcribe_audio
-                user_input = transcribe_audio(voice_input.getvalue(), "sevasathi-eligibility-answer.wav")
-            except Exception as exc:
-                st.error(f"Voice input unavailable: {exc}")
     if user_input:
         msg_handle(user_input, rag)
         st.rerun()
@@ -502,8 +473,8 @@ if st.session_state.recommendation_results is None:
     answers = st.session_state.quiz_answers
     summary_query = (
         f"I am {answers['age']} and {answers['gender']} from {answers['state']}. "
-        f"Category: {answers['category']}, Occupation: {answers['occupation']}, "
-        f"Income: {answers['income']}. Seeking: {answers['need']}."
+        f"Category: {answers['category']}, Annual income: {answers['income']}. "
+        f"Financial need: {answers['need']}."
     )
     with st.spinner("Analyzing your completed eligibility profile..."):
         st.session_state.recommendation_results = rag.recommend(
@@ -521,68 +492,7 @@ render_result(st.session_state.recommendation_results, key_prefix="current")
 st.subheader("Continue your conversation")
 st.caption("Ask about eligibility, benefits, documents, application steps, or request updated schemes.")
 follow_up = st.chat_input("Ask a follow-up question...")
-if st.session_state.voice_enabled:
-    voice_follow_up = st.audio_input("Or ask by voice", label_visibility="visible")
-    if voice_follow_up is not None:
-        try:
-            from chat_coref.voice import transcribe_audio
-            follow_up = transcribe_audio(voice_follow_up.getvalue(), "sevasathi-follow-up.wav")
-        except Exception as exc:
-            st.error(f"Voice input unavailable: {exc}")
 if follow_up:
     msg_handle(follow_up, rag)
     st.rerun()
 
-st.stop()
-
-voice_col, reset_col = st.columns([1, 1])
-with voice_col:
-    if st.button("🎙", key="voice_orb", help="Open voice-only conversation"):
-        st.query_params["mode"] = "voice"
-        st.rerun()
-with reset_col:
-    if st.button("New conversation", key="new_conversation"):
-        end_msg()
-        st.rerun()
-
-for message in st.session_state.history:
-    with st.chat_message(message["role"]):
-        if message["role"] == "assistant" and isinstance(message["content"], dict):
-            render_result(message["content"])
-        else:
-            st.write(message["content"])
-
-user_input = st.chat_input("Tell me about your situation...")
-if user_input:
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.spinner("Thinking..."):
-        response = msg_handle(user_input, rag)
-    with st.chat_message("assistant"):
-        if isinstance(response, dict):
-            render_result(response)
-            speak(response.get("summary", "Your scheme recommendations are ready."))
-        else:
-            st.markdown(response)
-            speak(response)
-    st.rerun()
-
-st.divider()
-st.subheader("Nearby channel partners")
-st.caption("Scheme recommendations do not require a location. Add one only if you want the best scheme and nearby authorized channels for that location.")
-if st.button("Use my current location", key="use_device_location"):
-    st.session_state.location_request_active = True
-    st.rerun()
-request_device_location(rag)
-
-address = st.text_input("Location address", placeholder="Village, district, state", key="channel_address")
-if st.button("Find nearby channels", key="use_location") and address.strip():
-    from chat_coref.geo_router import geocode_address
-    coordinates = geocode_address(address)
-    if not coordinates:
-        st.error("Address could not be resolved. Check GEOCODING_ENABLED=true and provide a complete address.")
-    else:
-        _save_location({"address": address, "coordinates": coordinates, "source": "address"}, rag)
-        st.success("Location saved. Nearby eligible channels are now available above.")
-        st.rerun()

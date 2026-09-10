@@ -11,7 +11,6 @@
       "gender",
       "age",
       "state",
-      "occupation",
       "project or course cost"
     ],
     "required_for_nearby_channels": [
@@ -74,10 +73,5 @@
       "expected_channel_flow": "Do not return MOCK Ranchi Exhausted Fund Branch because available funds are zero.",
       "excluded_mock_partner": "MOCK Ranchi Exhausted Fund Branch"
     }
-  ],
-  "voice_prompts": [
-    "Please tell me what scheme or financial support you need. I can recommend schemes now. If you want nearby channel partners, you can say your location afterward.",
-    "If you want to know your nearby channel partners, say your complete village, district, and state address.",
-    "I could not locate that address. Please say a more complete address, including district and state."
   ]
 }

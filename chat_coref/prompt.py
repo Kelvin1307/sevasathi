@@ -21,7 +21,7 @@ JSON Schema:
     {
       "scheme_name": "Full official scheme name",
       "match_score": 0.95,
-      "why_it_matches": "Clear explanation of why this matches user's age, gender, state, occupation, category, and income",
+      "why_it_matches": "Clear explanation of why this matches the user's age, gender, state, category, income, and financial need",
       "eligibility": ["Criterion 1", "Criterion 2"],
       "benefits": ["Benefit 1", "Benefit 2"],
       "documents_required": ["Aadhaar Card", "Bank Passbook", "Income Certificate", "Domicile Certificate"],
